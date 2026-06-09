@@ -30,6 +30,7 @@ test("shapeChatResponse exposes stable mappable chat fields", () => {
   assert.equal(result.role, "assistant");
   assert.equal(result.model, "gpt-5.2");
   assert.equal(result.text, "{\"ok\":true}");
+  assert.equal("content" in result, false);
   assert.deepEqual(result.parsed_json, { ok: true });
   assert.deepEqual(result.usage, {
     input_tokens: 10,
@@ -38,6 +39,28 @@ test("shapeChatResponse exposes stable mappable chat fields", () => {
   });
   assert.equal(result.finish_reason, "completed");
   assert.equal(result.raw, raw);
+});
+
+test("shapeChatResponse exposes function calls in tool_calls", () => {
+  const raw = {
+    id: "resp_456",
+    model: "gpt-5.5",
+    output: [
+      {
+        type: "function_call",
+        call_id: "call_123",
+        name: "wordstat_get_top_requests",
+        arguments: "{\"phrase\":\"тахограф\"}"
+      }
+    ]
+  };
+
+  const result = shapeChatResponse(raw);
+
+  assert.equal(result.operation, "chat");
+  assert.equal(result.tool_calls.length, 1);
+  assert.equal(result.tool_calls[0].type, "function_call");
+  assert.equal(result.tool_calls[0].name, "wordstat_get_top_requests");
 });
 
 test("shapeImageResponse returns one primary URL plus future-proof array metadata", () => {
@@ -71,6 +94,7 @@ test("shapeTtsResponse exposes an audio URL and file metadata", () => {
   const result = shapeTtsResponse({
     model: "gpt-4o-mini-tts",
     voice: "marin",
+    speed: 1.2,
     audio: {
       url: "https://cdn.example.com/files/speech.mp3",
       fileName: "speech.mp3",
@@ -87,4 +111,5 @@ test("shapeTtsResponse exposes an audio URL and file metadata", () => {
   assert.equal(result.mime_type, "audio/mpeg");
   assert.equal(result.model, "gpt-4o-mini-tts");
   assert.equal(result.voice, "marin");
+  assert.equal(result.speed, 1.2);
 });
