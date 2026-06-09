@@ -36,7 +36,7 @@ export async function validateOpenAiKey(context) {
 }
 
 async function handleChat(chat, context) {
-  const model = pickModel(chat, "gpt-5.2");
+  const model = chat.model || "gpt-5.5";
   const requestBody = {
     model,
     input: buildResponsesInput(chat),
@@ -51,6 +51,24 @@ async function handleChat(chat, context) {
     requestBody.tools = [{ type: "web_search_preview" }];
   }
 
+  if (isTruthy(chat.structured_output)) {
+    requestBody.text = {
+      format: {
+        type: "json_schema",
+        name: chat.json_schema_name || "structured_response",
+        schema: parseJsonField(chat.json_schema, "JSON Schema"),
+        strict: true
+      }
+    };
+  }
+
+  if (isTruthy(chat.function_calling)) {
+    requestBody.tools = parseJsonField(chat.functions, "Functions (JSON)").map(normalizeFunctionTool);
+    if (chat.tool_choice) {
+      requestBody.tool_choice = chat.tool_choice;
+    }
+  }
+
   const raw = requestBody.stream
     ? await openaiStreamJson("/responses", requestBody, context)
     : await openaiJson("/responses", requestBody, context);
@@ -60,9 +78,9 @@ async function handleChat(chat, context) {
 
 async function handleImage(image, context) {
   const startedAt = new Date();
-  const model = pickModel(image, "gpt-image-2");
+  const model = image.model || "gpt-image-2";
   const jobId = `job_${randomUUID()}`;
-  const inputUrls = image.input_urls || [];
+  const inputUrls = cleanStringList(image.input_urls || []);
 
   const raw =
     inputUrls.length > 0
@@ -124,7 +142,7 @@ async function editImage({ image, model, inputUrls, context }) {
       maxBytes: context.config.maxDownloadBytes,
       fetchImpl: context.fetchImpl
     });
-    form.append("image", new Blob([file.buffer], { type: file.mimeType }), file.fileName);
+    form.append("image[]", new Blob([file.buffer], { type: file.mimeType }), file.fileName);
   }
 
   return openaiMultipart("/images/edits", form, context);
@@ -143,7 +161,8 @@ async function handleAudio(audio, context) {
 }
 
 async function transcribeAudio(audio, context) {
-  const model = audio.timestamps ? "whisper-1" : pickModel(audio, "gpt-4o-transcribe");
+  const model = audio.timestamps ? "whisper-1" : audio.model || "gpt-4o-transcribe";
+  const isDiarize = model === "gpt-4o-transcribe-diarize";
   const file = await downloadUrl(audio.audio_url, {
     maxBytes: context.config.maxDownloadBytes,
     fetchImpl: context.fetchImpl
@@ -152,21 +171,31 @@ async function transcribeAudio(audio, context) {
   const form = new FormData();
   form.set("model", model);
   form.set("file", new Blob([file.buffer], { type: file.mimeType }), file.fileName);
-  form.set("response_format", model === "whisper-1" ? "verbose_json" : "json");
+  form.set("response_format", responseFormatForTranscription(model));
   if (audio.language) form.set("language", audio.language);
-  if (audio.prompt) form.set("prompt", audio.prompt);
+  if (audio.prompt && !isDiarize) form.set("prompt", audio.prompt);
   if (model === "whisper-1" && audio.timestamps) {
     form.append("timestamp_granularities[]", "segment");
     form.append("timestamp_granularities[]", "word");
+  }
+  if (isDiarize) {
+    form.set("chunking_strategy", "auto");
   }
 
   const raw = await openaiMultipart("/audio/transcriptions", form, context);
   return shapeTranscriptionResponse({ model, raw });
 }
 
+function responseFormatForTranscription(model) {
+  if (model === "whisper-1") return "verbose_json";
+  if (model === "gpt-4o-transcribe-diarize") return "diarized_json";
+  return "json";
+}
+
 async function textToSpeech(audio, context) {
-  const model = pickModel(audio, "gpt-4o-mini-tts");
+  const model = audio.model || "gpt-4o-mini-tts";
   const format = audio.format || "mp3";
+  const speed = normalizeOptionalNumber(audio.speed) ?? 1;
   const rawResponse = await openaiBinary(
     "/audio/speech",
     {
@@ -174,7 +203,8 @@ async function textToSpeech(audio, context) {
       voice: audio.voice || "marin",
       input: audio.text,
       instructions: audio.instructions || undefined,
-      response_format: format
+      response_format: format,
+      speed
     },
     context
   );
@@ -192,6 +222,7 @@ async function textToSpeech(audio, context) {
   return shapeTtsResponse({
     model,
     voice: audio.voice || "marin",
+    speed,
     audio: stored,
     raw: { response_headers: rawResponse.headers }
   });
@@ -213,7 +244,7 @@ function buildResponsesInput(chat) {
   }
 
   const content = [{ type: "input_text", text: chat.user_prompt }];
-  for (const url of chat.media_urls || []) {
+  for (const url of cleanStringList(chat.media_urls || [])) {
     content.push({ type: "input_image", image_url: url });
   }
 
@@ -229,6 +260,45 @@ function parseMemory(memory) {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     throw new HttpError(400, "Memory должен быть JSON-массивом сообщений.");
+  }
+}
+
+function cleanStringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+function normalizeOptionalNumber(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeFunctionTool(tool) {
+  if (tool?.type === "function") return tool;
+  return {
+    type: "function",
+    name: tool.name,
+    description: tool.description || "",
+    parameters: tool.parameters || {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false
+    }
+  };
+}
+
+function isTruthy(value) {
+  return value === true || value === "true" || value === "yes";
+}
+
+function parseJsonField(value, fieldName) {
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new HttpError(400, `${fieldName}: укажите корректный JSON.`);
   }
 }
 
@@ -352,10 +422,6 @@ function openaiHeaders(apiKey) {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json"
   };
-}
-
-function pickModel(input, fallback) {
-  return input.custom_model || input.model || fallback;
 }
 
 function mapAspectToSize(aspectRatio = "1:1", resolution = "auto") {
