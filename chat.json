@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenAI Make Universal Backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/openai-make-universal/backend
+EnvironmentFile=/opt/openai-make-universal/backend/.env
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
