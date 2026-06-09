@@ -4,21 +4,21 @@ import assert from "node:assert/strict";
 import { buildSrt, buildVtt, shapeTranscriptionResponse } from "../src/subtitles.js";
 
 const segments = [
-  { id: 0, start: 0, end: 1.42, text: "Привет." },
+  { id: 0, start: 0, end: 1.42, speaker: "SPEAKER_00", text: "Привет." },
   { id: 1, start: 61.5, end: 63.25, text: "Это тест." }
 ];
 
 test("buildSrt formats segment timestamps for subtitle tools", () => {
   assert.equal(
     buildSrt(segments),
-    "1\n00:00:00,000 --> 00:00:01,420\nПривет.\n\n2\n00:01:01,500 --> 00:01:03,250\nЭто тест."
+    "1\n00:00:00,000 --> 00:00:01,420\n[SPEAKER_00] Привет.\n\n2\n00:01:01,500 --> 00:01:03,250\nЭто тест."
   );
 });
 
 test("buildVtt formats segment timestamps for web video tools", () => {
   assert.equal(
     buildVtt(segments),
-    "WEBVTT\n\n00:00:00.000 --> 00:00:01.420\nПривет.\n\n00:01:01.500 --> 00:01:03.250\nЭто тест."
+    "WEBVTT\n\n00:00:00.000 --> 00:00:01.420\n[SPEAKER_00] Привет.\n\n00:01:01.500 --> 00:01:03.250\nЭто тест."
   );
 });
 
