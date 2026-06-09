@@ -21,7 +21,7 @@ export function buildSrt(segments) {
       return [
         String(index + 1),
         `${formatSrtTime(segment.start)} --> ${formatSrtTime(segment.end)}`,
-        String(segment.text || "").trim()
+        formatSubtitleText(segment)
       ].join("\n");
     })
     .join("\n\n");
@@ -32,12 +32,17 @@ export function buildVtt(segments) {
     .map((segment) => {
       return [
         `${formatVttTime(segment.start)} --> ${formatVttTime(segment.end)}`,
-        String(segment.text || "").trim()
+        formatSubtitleText(segment)
       ].join("\n");
     })
     .join("\n\n");
 
   return `WEBVTT\n\n${body}`;
+}
+
+function formatSubtitleText(segment) {
+  const text = String(segment.text || "").trim();
+  return segment.speaker ? `[${segment.speaker}] ${text}` : text;
 }
 
 function formatSrtTime(seconds) {
