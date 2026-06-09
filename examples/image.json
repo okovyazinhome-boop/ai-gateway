@@ -1,0 +1,12 @@
+{
+  "operation": "image",
+  "image": {
+    "model": "gpt-image-2",
+    "prompt": "Создай реалистичную вертикальную обложку 9:16 для B2B-видео о тахографах.",
+    "input_urls": [],
+    "aspect_ratio": "9:16",
+    "resolution": "2K",
+    "quality": "auto",
+    "output_format": "png"
+  }
+}

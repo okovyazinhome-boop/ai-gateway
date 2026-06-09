@@ -1,0 +1,13 @@
+{
+  "operation": "chat",
+  "chat": {
+    "model": "gpt-5.2",
+    "user_prompt": "Напиши короткий экспертный текст для Reels про тахограф.",
+    "developer_instruction": "Пиши по-русски, уверенно и без воды.",
+    "media_urls": [],
+    "memory": [],
+    "web_search": false,
+    "stream": false,
+    "reasoning_effort": "medium"
+  }
+}
