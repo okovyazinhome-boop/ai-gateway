@@ -33,13 +33,18 @@ export function shapeImageResponse({ model, jobId, startedAt, completedAt, image
   };
 }
 
-export function shapeTtsResponse({ model, voice, speed, audio, raw }) {
+export function shapeTtsResponse({ model, voice, speed, audio, transcription = null, raw }) {
   return {
     operation: "audio",
     audio_operation: "tts",
     model,
     voice,
     speed,
+    text: transcription?.text || null,
+    srt: transcription?.srt || "",
+    vtt: transcription?.vtt || "",
+    segments: transcription?.segments || [],
+    words: transcription?.words || [],
     audio_url: audio.url,
     file_name: audio.fileName,
     mime_type: audio.mimeType,
