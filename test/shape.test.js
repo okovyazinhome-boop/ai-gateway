@@ -95,6 +95,13 @@ test("shapeTtsResponse exposes an audio URL and file metadata", () => {
     model: "gpt-4o-mini-tts",
     voice: "marin",
     speed: 1.2,
+    transcription: {
+      text: "Привет.",
+      srt: "1\n00:00:00,000 --> 00:00:01,000\nПривет.",
+      vtt: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nПривет.",
+      segments: [{ id: 0, start: 0, end: 1, text: "Привет." }],
+      words: [{ word: "Привет", start: 0, end: 0.8 }]
+    },
     audio: {
       url: "https://cdn.example.com/files/speech.mp3",
       fileName: "speech.mp3",
@@ -112,4 +119,8 @@ test("shapeTtsResponse exposes an audio URL and file metadata", () => {
   assert.equal(result.model, "gpt-4o-mini-tts");
   assert.equal(result.voice, "marin");
   assert.equal(result.speed, 1.2);
+  assert.equal(result.text, "Привет.");
+  assert.match(result.srt, /00:00:00,000/);
+  assert.deepEqual(result.segments, [{ id: 0, start: 0, end: 1, text: "Привет." }]);
+  assert.deepEqual(result.words, [{ word: "Привет", start: 0, end: 0.8 }]);
 });
