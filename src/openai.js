@@ -210,6 +210,15 @@ async function textToSpeech(audio, context) {
   );
 
   const mimeType = mimeFromAudioFormat(format);
+  const subtitleTranscription = isTruthy(audio.tts_timestamps)
+    ? await transcribeSpeechBuffer({
+        buffer: rawResponse.buffer,
+        mimeType,
+        fileName: `speech.${extensionFromMime(mimeType)}`,
+        context
+      })
+    : null;
+
   const stored = await createStoredFile({
     buffer: rawResponse.buffer,
     mimeType,
@@ -223,9 +232,25 @@ async function textToSpeech(audio, context) {
     model,
     voice: audio.voice || "marin",
     speed,
+    transcription: subtitleTranscription,
     audio: stored,
-    raw: { response_headers: rawResponse.headers }
+    raw: {
+      response_headers: rawResponse.headers,
+      subtitle_transcription: subtitleTranscription?.raw || null
+    }
   });
+}
+
+async function transcribeSpeechBuffer({ buffer, mimeType, fileName, context }) {
+  const form = new FormData();
+  form.set("model", "whisper-1");
+  form.set("file", new Blob([buffer], { type: mimeType }), fileName);
+  form.set("response_format", "verbose_json");
+  form.append("timestamp_granularities[]", "segment");
+  form.append("timestamp_granularities[]", "word");
+
+  const raw = await openaiMultipart("/audio/transcriptions", form, context);
+  return shapeTranscriptionResponse({ model: "whisper-1", raw });
 }
 
 function buildResponsesInput(chat) {
