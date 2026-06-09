@@ -6,7 +6,6 @@ export function shapeChatResponse(raw) {
     role: extractRole(raw) || "assistant",
     model: raw.model || null,
     text,
-    content: text,
     finish_reason: raw.status || extractFinishReason(raw) || null,
     usage: normalizeUsage(raw.usage),
     tool_calls: extractToolCalls(raw),
@@ -34,12 +33,13 @@ export function shapeImageResponse({ model, jobId, startedAt, completedAt, image
   };
 }
 
-export function shapeTtsResponse({ model, voice, audio, raw }) {
+export function shapeTtsResponse({ model, voice, speed, audio, raw }) {
   return {
     operation: "audio",
     audio_operation: "tts",
     model,
     voice,
+    speed,
     audio_url: audio.url,
     file_name: audio.fileName,
     mime_type: audio.mimeType,
@@ -87,7 +87,9 @@ function normalizeUsage(usage = {}) {
 }
 
 function extractToolCalls(raw) {
-  return (raw.output || []).filter((item) => item.type && item.type.includes("tool"));
+  return (raw.output || []).filter((item) => {
+    return item.type && (item.type.includes("tool") || item.type === "function_call");
+  });
 }
 
 function extractReasoning(raw) {
