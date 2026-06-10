@@ -13,6 +13,7 @@ export function loadConfig(env = process.env) {
     filesDir,
     fileTtlMs: fileTtlHours * 60 * 60 * 1000,
     maxDownloadBytes: maxDownloadMb * 1024 * 1024,
-    openaiBaseUrl: env.OPENAI_BASE_URL || "https://api.openai.com/v1"
+    openaiBaseUrl: env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+    geminiBaseUrl: env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta"
   };
 }
