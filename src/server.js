@@ -5,6 +5,7 @@ import { basename } from "node:path";
 import { loadConfig } from "./config.js";
 import { cleanupExpiredFiles } from "./files.js";
 import { handleUniversal, validateOpenAiKey } from "./openai.js";
+import { handleUniversal as handleGeminiUniversal, validateGeminiKey } from "./gemini.js";
 import { toPublicError } from "./errors.js";
 import { validateUniversalPayload } from "./validation.js";
 
@@ -70,6 +71,49 @@ export function createApp({ config: appConfig = config, fetchImpl = fetch } = {}
     }
   });
 
+  app.get("/api/gemini/validate-key", async (req, res) => {
+    try {
+      const geminiApiKey = extractGeminiKey(req);
+      const result = await validateGeminiKey({
+        config: appConfig,
+        geminiApiKey,
+        fetchImpl
+      });
+      res.json(result);
+    } catch (error) {
+      const publicError = toPublicError(error);
+      res.status(publicError.status).json({
+        error: {
+          message: publicError.message,
+          details: publicError.details
+        }
+      });
+    }
+  });
+
+  app.post("/api/gemini/universal", async (req, res) => {
+    try {
+      const geminiApiKey = extractGeminiKey(req);
+      validateUniversalPayload(req.body, { geminiApiKey });
+
+      const result = await handleGeminiUniversal(req.body, {
+        config: appConfig,
+        geminiApiKey,
+        fetchImpl
+      });
+
+      res.json(result);
+    } catch (error) {
+      const publicError = toPublicError(error);
+      res.status(publicError.status).json({
+        error: {
+          message: publicError.message,
+          details: publicError.details
+        }
+      });
+    }
+  });
+
   return app;
 }
 
@@ -85,13 +129,22 @@ export async function startServer() {
 
   const app = createApp({ config });
   app.listen(config.port, () => {
-    console.log(`OpenAI Make backend listening on port ${config.port}`);
+    console.log(`AI Gateway backend listening on port ${config.port}`);
     console.log(`Serving ${basename(config.filesDir)} files from ${config.publicBaseUrl}/files/`);
   });
 }
 
 function extractOpenAiKey(req) {
   const explicit = req.get("x-openai-api-key");
+  if (explicit) return explicit.trim();
+
+  const authorization = req.get("authorization") || "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function extractGeminiKey(req) {
+  const explicit = req.get("x-gemini-api-key") || req.get("x-goog-api-key");
   if (explicit) return explicit.trim();
 
   const authorization = req.get("authorization") || "";
