@@ -48,7 +48,7 @@ async function handleChat(chat, context) {
   };
 
   if (chat.developer_instruction) {
-    body.system_instruction = { parts: [{ text: chat.developer_instruction }] };
+    body.systemInstruction = { parts: [{ text: chat.developer_instruction }] };
   }
 
   const tools = buildTools(chat);
@@ -93,12 +93,8 @@ function buildChatGenerationConfig(chat) {
   }
 
   if (isTruthy(chat.structured_output)) {
-    generationConfig.responseFormat = {
-      text: {
-        mimeType: "application/json",
-        schema: parseJsonField(chat.json_schema, "JSON Schema")
-      }
-    };
+    generationConfig.responseMimeType = "application/json";
+    generationConfig.responseSchema = parseJsonField(chat.json_schema, "JSON Schema");
   }
 
   return Object.keys(generationConfig).length > 0 ? generationConfig : undefined;
@@ -108,12 +104,12 @@ function buildTools(chat) {
   const tools = [];
 
   if (isTruthy(chat.web_search)) {
-    tools.push({ google_search: {} });
+    tools.push({ googleSearch: {} });
   }
 
   if (isTruthy(chat.function_calling)) {
     tools.push({
-      function_declarations: parseJsonField(chat.functions, "Functions (JSON)").map(normalizeFunctionDeclaration)
+      functionDeclarations: parseJsonField(chat.functions, "Functions (JSON)").map(normalizeFunctionDeclaration)
     });
   }
 
@@ -140,7 +136,7 @@ async function handleImage(image, context) {
     {
       contents: [{ role: "user", parts }],
       generationConfig: {
-        responseModalities: ["Image"],
+        responseModalities: ["TEXT", "IMAGE"],
         responseFormat: {
           image: {
             aspectRatio: image.aspect_ratio || "1:1",
@@ -288,8 +284,8 @@ async function transcribeBuffer({ buffer, mimeType, model, language, prompt, tim
         parts: [
           { text: language ? `${instruction} Язык: ${language}.` : instruction },
           {
-            inline_data: {
-              mime_type: mimeType,
+            inlineData: {
+              mimeType,
               data: buffer.toString("base64")
             }
           }
@@ -300,12 +296,8 @@ async function transcribeBuffer({ buffer, mimeType, model, language, prompt, tim
 
   if (timestamps) {
     body.generationConfig = {
-      responseFormat: {
-        text: {
-          mimeType: "application/json",
-          schema: subtitleSchema()
-        }
-      }
+      responseMimeType: "application/json",
+      responseSchema: subtitleSchema()
     };
   }
 
@@ -369,8 +361,8 @@ function geminiHeaders(apiKey) {
 
 function toInlineDataPart(file) {
   return {
-    inline_data: {
-      mime_type: file.mimeType,
+    inlineData: {
+      mimeType: file.mimeType,
       data: file.buffer.toString("base64")
     }
   };
