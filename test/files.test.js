@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -44,6 +44,25 @@ test("createStoredBase64File writes data URL payloads", async () => {
   assert.equal(stored.expiresAt.toISOString(), "2026-06-10T10:00:00.000Z");
   const saved = await stat(join(dir, stored.fileName));
   assert.equal(saved.size, 5);
+});
+
+test("createStoredBase64File can wrap PCM audio in a WAV container", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "openai-make-pcm-files-"));
+  const pcm = Buffer.from([0, 0, 1, 0, 2, 0, 3, 0]);
+
+  const stored = await createStoredBase64File({
+    data: pcm.toString("base64"),
+    mimeType: "audio/L16;codec=pcm;rate=24000",
+    filesDir: dir,
+    publicBaseUrl: "https://ai.example.com",
+    convertPcmToWav: true
+  });
+
+  assert.equal(stored.mimeType, "audio/wav");
+  assert.match(stored.fileName, /\.wav$/);
+  const saved = await readFile(join(dir, stored.fileName));
+  assert.equal(saved.subarray(0, 4).toString("ascii"), "RIFF");
+  assert.equal(saved.subarray(8, 12).toString("ascii"), "WAVE");
 });
 
 test("cleanupExpiredFiles deletes files older than the configured TTL", async () => {
