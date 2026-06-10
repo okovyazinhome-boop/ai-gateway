@@ -3,10 +3,10 @@ import { mkdir } from "node:fs/promises";
 import { basename } from "node:path";
 
 import { loadConfig } from "./config.js";
-import { cleanupExpiredFiles } from "./files.js";
+import { cleanupExpiredFiles, createStoredBase64File } from "./files.js";
 import { handleUniversal, validateOpenAiKey } from "./openai.js";
 import { handleUniversal as handleGeminiUniversal, validateGeminiKey } from "./gemini.js";
-import { toPublicError } from "./errors.js";
+import { HttpError, toPublicError } from "./errors.js";
 import { validateUniversalPayload } from "./validation.js";
 
 const config = loadConfig();
@@ -14,7 +14,7 @@ const config = loadConfig();
 export function createApp({ config: appConfig = config, fetchImpl = fetch } = {}) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "75mb" }));
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
@@ -27,6 +27,39 @@ export function createApp({ config: appConfig = config, fetchImpl = fetch } = {}
       res.setHeader("X-Robots-Tag", "noindex");
     }
   }));
+
+  app.post("/api/files/base64", async (req, res) => {
+    try {
+      requireStorageAuth(req);
+
+      const stored = await createStoredBase64File({
+        data: req.body?.data || req.body?.base64,
+        mimeType: req.body?.mime_type || req.body?.mimeType || "application/octet-stream",
+        extension: req.body?.extension,
+        filesDir: appConfig.filesDir,
+        publicBaseUrl: appConfig.publicBaseUrl,
+        ttlMs: appConfig.fileTtlMs
+      });
+
+      res.json({
+        operation: "storage",
+        status: "success",
+        file_url: stored.url,
+        url: stored.url,
+        file_name: stored.fileName,
+        mime_type: stored.mimeType,
+        expires_at: stored.expiresAt.toISOString()
+      });
+    } catch (error) {
+      const publicError = toPublicError(error);
+      res.status(publicError.status).json({
+        error: {
+          message: publicError.message,
+          details: publicError.details
+        }
+      });
+    }
+  });
 
   app.get("/api/openai/validate-key", async (req, res) => {
     try {
@@ -150,6 +183,12 @@ function extractGeminiKey(req) {
   const authorization = req.get("authorization") || "";
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   return match ? match[1].trim() : "";
+}
+
+function requireStorageAuth(req) {
+  if (extractOpenAiKey(req) || extractGeminiKey(req)) return;
+
+  throw new HttpError(401, "Для сохранения файла нужен API key в заголовке x-openai-api-key или x-gemini-api-key.");
 }
 
 if (import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`) {
