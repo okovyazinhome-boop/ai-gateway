@@ -7,7 +7,7 @@ export function shapeChatResponse(raw) {
     model: raw.model || null,
     text,
     finish_reason: raw.status || extractFinishReason(raw) || null,
-    usage: normalizeUsage(raw.usage),
+    usage: normalizeUsage(raw.usage || raw.usageMetadata),
     tool_calls: extractToolCalls(raw),
     parsed_json: parseJsonOrNull(text),
     reasoning: extractReasoning(raw),
@@ -54,6 +54,13 @@ export function shapeTtsResponse({ model, voice, speed, audio, transcription = n
 }
 
 function extractText(raw) {
+  if (Array.isArray(raw.candidates)) {
+    return raw.candidates
+      .flatMap((candidate) => candidate.content?.parts || [])
+      .map((part) => part.text || "")
+      .join("");
+  }
+
   if (typeof raw.output_text === "string") {
     return raw.output_text;
   }
@@ -68,6 +75,10 @@ function extractText(raw) {
 }
 
 function extractRole(raw) {
+  for (const candidate of raw.candidates || []) {
+    if (candidate.content?.role) return candidate.content.role;
+  }
+
   for (const item of raw.output || []) {
     if (item.role) return item.role;
   }
@@ -75,6 +86,10 @@ function extractRole(raw) {
 }
 
 function extractFinishReason(raw) {
+  for (const candidate of raw.candidates || []) {
+    if (candidate.finishReason) return candidate.finishReason;
+  }
+
   for (const item of raw.output || []) {
     if (item.status) return item.status;
   }
@@ -82,6 +97,14 @@ function extractFinishReason(raw) {
 }
 
 function normalizeUsage(usage = {}) {
+  if (usage.promptTokenCount || usage.candidatesTokenCount || usage.totalTokenCount) {
+    return {
+      input_tokens: usage.promptTokenCount || 0,
+      output_tokens: usage.candidatesTokenCount || 0,
+      total_tokens: usage.totalTokenCount || (usage.promptTokenCount || 0) + (usage.candidatesTokenCount || 0)
+    };
+  }
+
   const input = usage.input_tokens ?? usage.prompt_tokens ?? 0;
   const output = usage.output_tokens ?? usage.completion_tokens ?? 0;
   return {
@@ -92,6 +115,13 @@ function normalizeUsage(usage = {}) {
 }
 
 function extractToolCalls(raw) {
+  if (Array.isArray(raw.candidates)) {
+    return raw.candidates
+      .flatMap((candidate) => candidate.content?.parts || [])
+      .filter((part) => part.functionCall)
+      .map((part) => part.functionCall);
+  }
+
   return (raw.output || []).filter((item) => {
     return item.type && (item.type.includes("tool") || item.type === "function_call");
   });
