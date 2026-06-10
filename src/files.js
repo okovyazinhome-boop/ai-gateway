@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { HttpError } from "./errors.js";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const execFileAsync = promisify(execFile);
 
 export async function createStoredFile({
   buffer,
@@ -42,6 +46,7 @@ export async function createStoredBase64File({
   ttlMs = DEFAULT_TTL_MS,
   maxBytes = 50 * 1024 * 1024,
   convertPcmToWav = false,
+  outputFormat,
   sampleRate = 24000,
   channels = 1,
   bitsPerSample = 16
@@ -63,6 +68,12 @@ export async function createStoredBase64File({
     buffer = pcmToWav(buffer, sampleRate, channels, bitsPerSample);
     finalMimeType = "audio/wav";
     finalExtension = "wav";
+  }
+
+  if (String(outputFormat || "").toLowerCase() === "mp3") {
+    buffer = await wavToMp3(buffer);
+    finalMimeType = "audio/mpeg";
+    finalExtension = "mp3";
   }
 
   return createStoredFile({
@@ -141,4 +152,32 @@ export function pcmToWav(pcm, sampleRate = 24000, channels = 1, bitsPerSample = 
   header.write("data", 36);
   header.writeUInt32LE(pcm.length, 40);
   return Buffer.concat([header, pcm]);
+}
+
+async function wavToMp3(wavBuffer) {
+  const tempDir = await mkdtemp(join(tmpdir(), "ai-gateway-mp3-"));
+  const inputPath = join(tempDir, "input.wav");
+  const outputPath = join(tempDir, "output.mp3");
+
+  try {
+    await writeFile(inputPath, wavBuffer);
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      inputPath,
+      "-codec:a",
+      "libmp3lame",
+      "-b:a",
+      "128k",
+      outputPath
+    ]);
+    return await readFile(outputPath);
+  } catch (error) {
+    throw new HttpError(500, "Не удалось конвертировать аудио в MP3. Проверьте, что ffmpeg установлен в backend.", String(error?.message || error));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
