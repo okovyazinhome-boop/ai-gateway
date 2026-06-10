@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 
 import { validateUniversalPayload } from "../src/validation.js";
 
-test("validateUniversalPayload requires an OpenAI API key", () => {
+test("validateUniversalPayload requires an API key", () => {
   assert.throws(
     () => validateUniversalPayload({ operation: "chat", chat: { user_prompt: "Hi" } }, {}),
-    /OpenAI API key/
+    /API key/
   );
 });
 
@@ -68,6 +68,15 @@ test("validateUniversalPayload accepts a minimal chat payload", () => {
   const result = validateUniversalPayload(
     { operation: "chat", chat: { user_prompt: "Напиши текст" } },
     { openaiApiKey: "sk-test" }
+  );
+
+  assert.equal(result.operation, "chat");
+});
+
+test("validateUniversalPayload accepts a Gemini API key context", () => {
+  const result = validateUniversalPayload(
+    { operation: "chat", chat: { user_prompt: "Напиши текст" } },
+    { geminiApiKey: "test-key" }
   );
 
   assert.equal(result.operation, "chat");
