@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { HttpError } from "./errors.js";
+
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function createStoredFile({
@@ -28,6 +30,38 @@ export async function createStoredFile({
     filePath,
     expiresAt: new Date(now.getTime() + ttlMs)
   };
+}
+
+export async function createStoredBase64File({
+  data,
+  mimeType,
+  extension,
+  filesDir,
+  publicBaseUrl,
+  now = new Date(),
+  ttlMs = DEFAULT_TTL_MS,
+  maxBytes = 50 * 1024 * 1024
+}) {
+  const base64 = normalizeBase64Data(data);
+  const buffer = Buffer.from(base64, "base64");
+
+  if (!buffer.length) {
+    throw new HttpError(400, "Файл пустой или base64 некорректный.");
+  }
+
+  if (buffer.byteLength > maxBytes) {
+    throw new HttpError(413, `Файл слишком большой. Максимум: ${Math.floor(maxBytes / 1024 / 1024)} MB.`);
+  }
+
+  return createStoredFile({
+    buffer,
+    mimeType,
+    extension,
+    filesDir,
+    publicBaseUrl,
+    now,
+    ttlMs
+  });
 }
 
 export async function cleanupExpiredFiles({ filesDir, ttlMs = DEFAULT_TTL_MS, now = new Date() }) {
@@ -65,4 +99,10 @@ export function extensionFromMime(mimeType) {
   };
 
   return map[mimeType] || "bin";
+}
+
+function normalizeBase64Data(data) {
+  const value = String(data || "").trim();
+  const match = value.match(/^data:([^;,]+)?;base64,(.+)$/i);
+  return match ? match[2] : value;
 }
