@@ -8,6 +8,7 @@ ENV FILES_DIR=/app/public/files
 
 COPY package*.json ./
 RUN npm install --omit=dev
+RUN apk add --no-cache ffmpeg
 
 COPY src ./src
 
