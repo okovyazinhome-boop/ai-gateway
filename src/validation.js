@@ -4,7 +4,7 @@ const OPERATIONS = new Set(["chat", "image", "audio"]);
 const AUDIO_OPERATIONS = new Set(["transcribe", "tts"]);
 
 export function validateUniversalPayload(payload, context) {
-  assertRequired(context.openaiApiKey, "OpenAI API key обязателен.");
+  assertRequired(context.openaiApiKey || context.geminiApiKey, "API key обязателен.");
 
   if (!payload || typeof payload !== "object") {
     throw new HttpError(400, "Тело запроса должно быть JSON-объектом.");
