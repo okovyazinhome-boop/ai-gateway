@@ -38,7 +38,11 @@ export function createApp({ config: appConfig = config, fetchImpl = fetch } = {}
         extension: req.body?.extension,
         filesDir: appConfig.filesDir,
         publicBaseUrl: appConfig.publicBaseUrl,
-        ttlMs: appConfig.fileTtlMs
+        ttlMs: appConfig.fileTtlMs,
+        convertPcmToWav: isTruthy(req.body?.convert_to_wav || req.body?.convertPcmToWav),
+        sampleRate: Number(req.body?.sample_rate || req.body?.sampleRate || 24000),
+        channels: Number(req.body?.channels || 1),
+        bitsPerSample: Number(req.body?.bits_per_sample || req.body?.bitsPerSample || 16)
       });
 
       res.json({
@@ -189,6 +193,10 @@ function requireStorageAuth(req) {
   if (extractOpenAiKey(req) || extractGeminiKey(req)) return;
 
   throw new HttpError(401, "Для сохранения файла нужен API key в заголовке x-openai-api-key или x-gemini-api-key.");
+}
+
+function isTruthy(value) {
+  return value === true || value === "true" || value === "yes" || value === "1";
 }
 
 if (import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`) {
