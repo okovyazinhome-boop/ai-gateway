@@ -40,10 +40,16 @@ export async function createStoredBase64File({
   publicBaseUrl,
   now = new Date(),
   ttlMs = DEFAULT_TTL_MS,
-  maxBytes = 50 * 1024 * 1024
+  maxBytes = 50 * 1024 * 1024,
+  convertPcmToWav = false,
+  sampleRate = 24000,
+  channels = 1,
+  bitsPerSample = 16
 }) {
   const base64 = normalizeBase64Data(data);
-  const buffer = Buffer.from(base64, "base64");
+  let buffer = Buffer.from(base64, "base64");
+  let finalMimeType = mimeType;
+  let finalExtension = extension;
 
   if (!buffer.length) {
     throw new HttpError(400, "Файл пустой или base64 некорректный.");
@@ -53,10 +59,16 @@ export async function createStoredBase64File({
     throw new HttpError(413, `Файл слишком большой. Максимум: ${Math.floor(maxBytes / 1024 / 1024)} MB.`);
   }
 
+  if (convertPcmToWav || isPcmMimeType(mimeType)) {
+    buffer = pcmToWav(buffer, sampleRate, channels, bitsPerSample);
+    finalMimeType = "audio/wav";
+    finalExtension = "wav";
+  }
+
   return createStoredFile({
     buffer,
-    mimeType,
-    extension,
+    mimeType: finalMimeType,
+    extension: finalExtension,
     filesDir,
     publicBaseUrl,
     now,
@@ -105,4 +117,28 @@ function normalizeBase64Data(data) {
   const value = String(data || "").trim();
   const match = value.match(/^data:([^;,]+)?;base64,(.+)$/i);
   return match ? match[2] : value;
+}
+
+function isPcmMimeType(mimeType) {
+  return String(mimeType || "").toLowerCase().startsWith("audio/l16");
+}
+
+export function pcmToWav(pcm, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
+  const byteRate = (sampleRate * channels * bitsPerSample) / 8;
+  const blockAlign = (channels * bitsPerSample) / 8;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
 }
