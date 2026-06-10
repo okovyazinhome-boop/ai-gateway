@@ -40,6 +40,7 @@ export function createApp({ config: appConfig = config, fetchImpl = fetch } = {}
         publicBaseUrl: appConfig.publicBaseUrl,
         ttlMs: appConfig.fileTtlMs,
         convertPcmToWav: isTruthy(req.body?.convert_to_wav || req.body?.convertPcmToWav),
+        outputFormat: req.body?.output_format || req.body?.outputFormat,
         sampleRate: Number(req.body?.sample_rate || req.body?.sampleRate || 24000),
         channels: Number(req.body?.channels || 1),
         bitsPerSample: Number(req.body?.bits_per_sample || req.body?.bitsPerSample || 16)
