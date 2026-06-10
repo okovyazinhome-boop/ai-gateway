@@ -63,6 +63,40 @@ test("shapeChatResponse exposes function calls in tool_calls", () => {
   assert.equal(result.tool_calls[0].name, "wordstat_get_top_requests");
 });
 
+test("shapeChatResponse supports Gemini generateContent responses", () => {
+  const raw = {
+    model: "gemini-3.5-flash",
+    candidates: [
+      {
+        finishReason: "STOP",
+        content: {
+          role: "model",
+          parts: [{ text: "{\"ok\":true}" }]
+        }
+      }
+    ],
+    usageMetadata: {
+      promptTokenCount: 12,
+      candidatesTokenCount: 6,
+      totalTokenCount: 18
+    }
+  };
+
+  const result = shapeChatResponse(raw);
+
+  assert.equal(result.operation, "chat");
+  assert.equal(result.role, "model");
+  assert.equal(result.model, "gemini-3.5-flash");
+  assert.equal(result.text, "{\"ok\":true}");
+  assert.deepEqual(result.parsed_json, { ok: true });
+  assert.deepEqual(result.usage, {
+    input_tokens: 12,
+    output_tokens: 6,
+    total_tokens: 18
+  });
+  assert.equal(result.finish_reason, "STOP");
+});
+
 test("shapeImageResponse returns one primary URL plus future-proof array metadata", () => {
   const now = new Date("2026-06-09T10:00:00.000Z");
   const result = shapeImageResponse({
